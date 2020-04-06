@@ -1,0 +1,94 @@
+---
+title: "Storm Data Analysis"
+author: "Endri Raco"
+date: "4/6/2020"
+output: html_document
+keep_md: true
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+if(!require(tidyverse)) install.packages('tidyverse', 
+repos = 'http://cran.us.r-project.org')
+if(!require(lattice)) install.packages('lattice', 
+repos = 'http://cran.us.r-project.org')
+## specify global chunk options
+knitr::opts_chunk$set(fig.width = 5, fig.height = 4, dpi = 300,
+                      out.width = '90%', fig.align = 'center',
+                      tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE,
+                      cache = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+## Introduction
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+## Methods and Analysis
+
+### Importing data
+
+The data for this assignment come in the form of a comma-separated-value file compressed via the bzip2 algorithm to reduce its size. 
+
+You can download the file from the course web site:
+
+[Storm Data [47Mb]](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+
+
+Let's start with data download.  We copy link used in project description and assign it to **fileurl**.
+
+```{r, data_download}
+# We copy link used in project description and assign it to fileurl
+filename <- 'repdata_data_StormData.csv'
+# Controll for already existing files
+# If folder doesn't exist proceed with download
+if (!file.exists(filename)){
+  fileURL <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+  download.file(fileURL, filename, method='curl')
+}  
+#If file exists proceed with unzip
+if (!file.exists('repdata_data_StormData.csv')) { 
+  unzip(filename) 
+}
+```
+
+Now we load our downloaded data:
+
+```{r, data_read}
+# Read repdata_data_StormData.csv
+data <- read.csv("repdata_data_StormData.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
+names (data)
+```
+
+Let's see how are data look like:
+
+```{r, data_summary}
+# A first look to data
+head(data)
+# Let's check structure of dataframe
+glimpse(data)
+# Lets the class for every variable
+```
+
+Next step is to understand variable type and check for missing values:
+
+```{r, data_check}
+# Let's check for the number of missing values
+sum(is.na(data)) 
+# We check classes of every column inside data
+lapply(data,class)
+```
+
+
+### Data Processing
+
+
+### Exploring Data
+
+
+
+## Conclusions
+
