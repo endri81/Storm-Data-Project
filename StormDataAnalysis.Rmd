@@ -9,7 +9,7 @@ keep_md: true
 ```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
 if(!require(tidyverse)) install.packages('tidyverse', 
 repos = 'http://cran.us.r-project.org')
-if(!require(lattice)) install.packages('lattice', 
+if(!require(gridExtra)) install.packages('gridExtra', 
 repos = 'http://cran.us.r-project.org')
 ## specify global chunk options
 knitr::opts_chunk$set(fig.width = 5, fig.height = 4, dpi = 300,
@@ -20,6 +20,17 @@ knitr::opts_chunk$set(fig.width = 5, fig.height = 4, dpi = 300,
                       message = FALSE,
                       warning = FALSE)
 ```
+## Synopsis
+
+This paper presents some insights regarding effects of storms and other severe weather events on both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+For this research we will explore U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database.The database covers the time period between 1950 and November 2011. 
+
+The research aims to address the following questions:
+
+  - Across the United States, which types of events are most harmful with respect to population health?
+  
+  - Across the United States, which types of events have the greatest economic consequences?
 
 ## Introduction
 
@@ -73,8 +84,6 @@ glimpse(data)
 ```
 
 
-
-
 ### Data Processing
 
 We will focus to thosse observations related to injuries, fatalities, property damage
@@ -98,23 +107,15 @@ lapply(df,class)
 ```
 There are no missing values in the variables inside **df**.  We have 3 variables of type **character** (evtype, propdmgexp, cropdmgexp).
 
-In order not to create confusion while reporting results we convert all cases inside these variables in upper case. 
-
 For **evtype** we will clean cases from leading and trailing whitespaces and dublications to avoid problems with classification:
 
+
 ```{r, upper_case}
-# Convert to upper case all variables of type character
-df <- data.frame(lapply(df, function(v) {
-  if (is.character(v)) return(toupper(v))
-  else return(v)
-}))
 # Clean evtype
 df<- df %>% mutate(evtype = gsub(" +"," ",trimws(evtype)))
 ```
 
-In *National Weather Service Storm Data Documentation* is explained that  characters **K, M, B** have the respective meaning for thousands (K), millions(M), and billions(B). 
-
-Let's check if there are other symbols other than **K, M, B** inside variables **propdmgexp, cropdmgexp**
+Let's check if there are other symbols other than **K, M, B, H** inside variables **propdmgexp, cropdmgexp**
 
 ```{r, check_symbols}
 # For variable propdmgexp
@@ -123,18 +124,39 @@ unique(df$propdmgexp)
 unique(df$cropdmgexp)
 ```
 
-We have to remove all symbols other than K, M, B from both variables.
+Based in *National Weather Service Storm Data Documentation* we have to recode all these symbols to their appropriate values. The result of recoding we will save in 2 new variables **propdmgcost, cropdmgcost**, to represent damage created in dollars for properties and damage created in dollars for crop.
 
-```{r, clean_symbols}
-df <- df %>% 
-filter(cropdmgexp %in% c("K","M","B","") & propdmgexp %in% c("K","M","B",""))
-```
+We will also create a new variable **propcroptotal** to aggregrate total damage.
 
-Let's check our results:
+Let's start process step by step.
 
-```{r, clean_res}
-unique(df$propdmgexp)
-unique(df$cropdmgexp)
+
+```{r, clean_symbols_prop}
+# Create 3 new variables and initiate them
+df$propdmgcost=0
+df$cropdmgcost=0
+df$economy_damage_total =0
+
+# Let's fill new variable propdmgcost with data from recoding of propdmgexp
+df[df$propdmgexp=="H",]$propdmgcost=df[df$propdmgexp=="H",]$propdmg*100
+df[df$propdmgexp=="K",]$propdmgcost=df[df$propdmgexp=="K",]$propdmg*1000
+df[df$propdmgexp=="M",]$propdmgcost=df[df$propdmgexp=="M",]$propdmg*1000000
+df[df$propdmgexp=="B",]$propdmgcost=df[df$propdmgexp=="B",]$propdmg*1000000000
+
+# Let's fill new variable cropdmgcost with data from recoding of cropdmgexp
+df[df$cropdmgexp=="H",]$cropdmgcost=df[df$cropdmgexp=="H",]$cropdmg*100
+df[df$cropdmgexp=="K",]$cropdmgcost=df[df$cropdmgexp=="K",]$cropdmg*1000
+df[df$cropdmgexp=="M",]$cropdmgcost=df[df$cropdmgexp=="M",]$cropdmg*1000000
+df[df$cropdmgexp=="B",]$cropdmgcost=df[df$cropdmgexp=="B",]$cropdmg*1000000000
+# Total cost
+df$totalcostdmg = df$propdmgcost + df$cropdmgcost
+## Aggregate cost of damages
+economic_effect <- df %>% 
+select(evtype, totalcostdmg) %>%
+    group_by(evtype) %>%
+    summarise(costdmg = sum(totalcostdmg)) %>% 
+    arrange(desc(costdmg))
+    head(economic_effect, 10)
 ```
 
 
@@ -144,7 +166,7 @@ Now let's see if we can answer to question about types of events (as indicated i
 
 For this we aggregrate **fatalities**  by **evtype** to calculate sums and see top values
 
-```{r, agg_injuries}
+```{r, agg_fatalities}
 ## Aggregate fatalities
 agg_fatalities <- select(df, evtype, fatalities) %>%
     group_by(evtype) %>%
@@ -156,7 +178,7 @@ agg_fatalities <- select(df, evtype, fatalities) %>%
 Let's visualize our numeric results regarding top fatalities:
 
 
-```{r, agg_injuries}
+```{r, plot_fatalities}
 ## Plot top fatalities
 top_fatalities <- ggplot(head(agg_fatalities, 10), aes(x=reorder(evtype, sum_fatalities), y=sum_fatalities)) +
    geom_bar(fill="green",stat="identity")  + coord_flip() + 
@@ -192,7 +214,40 @@ top_injuries
 
 When it comes to economic consequences, We will vizualize top 10 factors judging by damages in dollars.
 
+```{r, cost_dmg}
+## Plot top events which damages have highest cost
+top_costdmg <- ggplot(head(economic_effect, 10), aes(x=reorder(evtype, costdmg), y=costdmg)) +
+   geom_bar(fill="green",stat="identity")  + coord_flip() + 
+    ylab("Cost in dollars") + xlab("Event") +
+    ggtitle("Top events which damages have highest cost") +
+    theme(legend.position="none")
+top_costdmg 
+```
+Now let's replot the above plot using logarithmic scale. We will put both plots in the same grid to compare if the used scale helps in inproving understanding.
 
+```{r, logplot}
+## Plot top events which damages have highest cost
+top_costdmg <- ggplot(head(economic_effect, 10), aes(x=reorder(evtype, costdmg), y=costdmg)) +
+   geom_bar(fill="green",stat="identity")  + coord_flip() + 
+    ylab("Cost in dollars") + xlab("Event") +
+    ggtitle("Top events which damages have highest cost") +
+    theme(legend.position="none")
+top_costdmg 
+## Plot the same plot using logarithmic scale
+top_costdmg_log <- ggplot(head(economic_effect, 10), aes(x=reorder(evtype, costdmg), y=log10(costdmg))) +
+   geom_bar(fill="yellow",stat="identity")  + coord_flip() + 
+    ylab("Cost in dollars(log scale)") + xlab("Event") +
+    ggtitle("Top events which damages have highest cost") +
+    theme(legend.position="none")
+top_costdmg_log
+## Arrange in grid
+grid.arrange(top_costdmg, top_costdmg_log, ncol=1, nrow =2)
+```
 
 ## Conclusions
 
+Analysis shows that Tornados and Excessive Heat are the top weather events when it comes to fatalities.
+
+Tornados are also the top weather event with respect to injuries. Suprising fact is that no matter how fatal can be Excessive Heat, this event is only in the fourth place when it comes to injuries, and is precedded by Thunderstorms and Flood.
+
+Events that mostly affect economics and largest property damages are flood and hurricanes.
