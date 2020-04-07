@@ -70,23 +70,127 @@ Let's see how are data look like:
 head(data)
 # Let's check structure of dataframe
 glimpse(data)
-# Lets the class for every variable
+```
+
+
+
+
+### Data Processing
+
+We will focus to thosse observations related to injuries, fatalities, property damage
+and crop damage. Also we will turn variable names to lower case
+
+```{r, damage_data}
+# Create df with focus data
+# Name of variables in the lower case
+df <- select(data, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP) %>%
+rename_all(tolower)
+names(df) 
 ```
 
 Next step is to understand variable type and check for missing values:
 
 ```{r, data_check}
 # Let's check for the number of missing values
-sum(is.na(data)) 
+sum(is.na(df)) 
 # We check classes of every column inside data
-lapply(data,class)
+lapply(df,class)
+```
+There are no missing values in the variables inside **df**.  We have 3 variables of type **character** (evtype, propdmgexp, cropdmgexp).
+
+In order not to create confusion while reporting results we convert all cases inside these variables in upper case. 
+
+For **evtype** we will clean cases from leading and trailing whitespaces and dublications to avoid problems with classification:
+
+```{r, upper_case}
+# Convert to upper case all variables of type character
+df <- data.frame(lapply(df, function(v) {
+  if (is.character(v)) return(toupper(v))
+  else return(v)
+}))
+# Clean evtype
+df<- df %>% mutate(evtype = gsub(" +"," ",trimws(evtype)))
+```
+
+In *National Weather Service Storm Data Documentation* is explained that  characters **K, M, B** have the respective meaning for thousands (K), millions(M), and billions(B). 
+
+Let's check if there are other symbols other than **K, M, B** inside variables **propdmgexp, cropdmgexp**
+
+```{r, check_symbols}
+# For variable propdmgexp
+unique(df$propdmgexp)
+# For variable crodmgexp
+unique(df$cropdmgexp)
+```
+
+We have to remove all symbols other than K, M, B from both variables.
+
+```{r, clean_symbols}
+df <- df %>% 
+filter(cropdmgexp %in% c("K","M","B","") & propdmgexp %in% c("K","M","B",""))
+```
+
+Let's check our results:
+
+```{r, clean_res}
+unique(df$propdmgexp)
+unique(df$cropdmgexp)
 ```
 
 
-### Data Processing
+### Data Analysis
+
+Now let's see if we can answer to question about types of events (as indicated in the \color{red}{\verb|evtype|}Evtype} variable) are most harmful with respect to population health across the United States ?
+
+For this we aggregrate **fatalities**  by **evtype** to calculate sums and see top values
+
+```{r, agg_injuries}
+## Aggregate fatalities
+agg_fatalities <- select(df, evtype, fatalities) %>%
+    group_by(evtype) %>%
+    summarise(sum_fatalities = sum(fatalities)) %>% 
+    arrange(desc(sum_fatalities))
+    head(agg_fatalities, 10)
+```
+
+Let's visualize our numeric results regarding top fatalities:
 
 
-### Exploring Data
+```{r, agg_injuries}
+## Plot top fatalities
+top_fatalities <- ggplot(head(agg_fatalities, 10), aes(x=reorder(evtype, sum_fatalities), y=sum_fatalities)) +
+   geom_bar(fill="green",stat="identity")  + coord_flip() + 
+    ylab("Fatalities") + xlab("Event") +
+    ggtitle("Most harmful weather events by fatality") +
+    theme(legend.position="none")
+top_fatalities
+```
+
+Let's repeat our previous steps for identifying top injuries
+
+```{r, top_injuries}
+## Aggregate injuries        
+agg_injuries <- select(df, evtype, injuries) %>% 
+      group_by(evtype) %>% 
+       summarise(sum_injuries = sum(injuries)) %>% 
+       arrange(desc(sum_injuries))
+       head(agg_injuries, 10)
+```
+
+And the plot:
+
+```{r, plot_injuries}
+## Plot top injuries
+top_injuries <- ggplot(head(agg_injuries, 10), aes(x=reorder(evtype, sum_injuries), y=sum_injuries)) +
+   geom_bar(fill="green",stat="identity")  + coord_flip() + 
+    ylab("Injuries") + xlab("Event") +
+    ggtitle("Most harmful weather events by injuries") +
+    theme(legend.position="none")
+top_injuries
+```
+
+
+When it comes to economic consequences, We will vizualize top 10 factors judging by damages in dollars.
 
 
 
